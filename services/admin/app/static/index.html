@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Корсик — админка HR</title>
+<style>
+  :root { --bg:#f3f6f9; --card:#fff; --ink:#14212b; --muted:#6b7b88; --brand:#0a7d6e; --line:#dde5ea; --bad:#c0392b; --warn:#b7791f; --ok:#1e8449; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:#0b2e3a; color:#fff; padding:14px 24px; display:flex; align-items:center; gap:24px; }
+  header h1 { font-size:17px; margin:0; }
+  nav button { background:none; border:0; color:#b9cdd6; font:inherit; padding:6px 12px; cursor:pointer; border-radius:8px; }
+  nav button.on { background:#14485a; color:#fff; }
+  main { max-width:1000px; margin:20px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  h2 { margin:0 0 12px; font-size:16px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  .pill { padding:2px 9px; border-radius:99px; font-size:12px; }
+  .ready { background:#e2f4e8; color:var(--ok); } .processing { background:#fff3d6; color:var(--warn); } .error { background:#fbe3e0; color:var(--bad); }
+  button.b { background:var(--brand); color:#fff; border:0; border-radius:9px; padding:8px 14px; cursor:pointer; font:inherit; }
+  button.s { background:#fff; border:1px solid var(--line); border-radius:8px; padding:3px 9px; cursor:pointer; font:inherit; }
+  .drop { border:2px dashed #b7c7d0; border-radius:12px; padding:22px; text-align:center; color:var(--muted); }
+  .drop.over { border-color:var(--brand); background:#eef9f7; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .kpi { background:#f7fafb; border-radius:12px; padding:12px 14px; } .kpi b { font-size:24px; display:block; }
+  .bar { display:flex; align-items:center; gap:8px; margin:5px 0; } .bar i { display:block; height:10px; border-radius:5px; background:var(--brand); }
+  .bar.neg i { background:var(--bad); } .bar.pos i { background:var(--ok); } .bar.neu i { background:#8aa0ab; }
+  pre { white-space:pre-wrap; background:#f7fafb; border-radius:10px; padding:12px; max-height:420px; overflow:auto; }
+  .m { max-width:78%; padding:8px 12px; border-radius:12px; border:1px solid var(--line); white-space:pre-wrap; background:#fff; }
+  .m.user { align-self:flex-start; background:#f1f5f7; } .m.assistant { align-self:flex-end; background:#e3f3f0; } .m.hr { align-self:flex-end; background:#e9e6fb; border-color:#cdc7f3; }
+  .m small { display:block; color:var(--muted); font-size:11px; margin-bottom:2px; }
+  tr.click { cursor:pointer; } tr.click:hover { background:#f7fafb; }
+  .st { padding:2px 9px; border-radius:99px; font-size:12px; background:#eef1f3; color:#55656f; white-space:nowrap; }
+  .st.done { background:#e2f4e8; color:var(--ok); } .st.sent { background:#fff3d6; color:var(--warn); } .st.due { background:#ffe6d5; color:#b34700; }
+  .st.error { background:#fbe3e0; color:var(--bad); } .st.waiting_recruiter { background:#ece7fb; color:#5b3fb8; } .st.scheduled { background:#e3eefb; color:#2a5da8; }
+  input[type=text], input[type=date], textarea.t { padding:7px 9px; border-radius:8px; border:1px solid var(--line); font:inherit; }
+  textarea.t { width:100%; min-height:70px; } .form { display:flex; gap:8px; flex-wrap:wrap; align-items:end; } .form label { display:flex; flex-direction:column; font-size:12px; color:var(--muted); gap:3px; }
+  .code { font-family:monospace; background:#eef6f4; padding:2px 8px; border-radius:6px; }
+  .item { border-top:1px solid var(--line); padding:8px 0; } .item small { color:var(--muted); }
+  details { border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin-bottom:8px; background:#fff; } summary { cursor:pointer; font-weight:500; }
+  .hide { display:none; } .muted { color:var(--muted); }
+  select { padding:7px; border-radius:8px; border:1px solid var(--line); font:inherit; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Корсик · админка HR</h1>
+  <nav id="nav">
+    <button data-t="docs" class="on">Документы</button>
+    <button data-t="emp">Сотрудники</button>
+    <button data-t="scn">Сценарий</button>
+    <button data-t="cmd">Команды</button>
+    <button data-t="dash">Аналитика</button>
+    <button data-t="esc">Эскалации</button>
+    <button data-t="set">Канал</button>
+  </nav>
+</header>
+<main>
+  <section id="docs">
+    <div class="card">
+      <h2>Загрузить документ</h2>
+      <div class="drop" id="drop">Перетащите PDF / PPTX / DOCX / TXT / изображение сюда или <a href="#" id="pick">выберите файлы</a><input type="file" id="file" multiple hidden></div>
+      <div id="upmsg" class="muted" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>База знаний</h2>
+      <table><thead><tr><th>Название</th><th>Файл</th><th>Статус</th><th>Стр. / чанков / OCR</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+    </div>
+    <div class="card hide" id="viewer"><h2 id="vtitle"></h2><pre id="vtext"></pre></div>
+  </section>
+
+  <section id="dash" class="hide">
+    <div class="card"><h2>Сводка</h2><div class="grid" id="kpis"></div></div>
+    <div class="card"><h2>Тональность сообщений</h2><div id="sent"></div></div>
+    <div class="card"><h2>О чём спрашивают</h2><div id="topics"></div></div>
+    <div class="card"><h2>Опросы адаптации</h2><table><thead><tr><th>Опрос</th><th>Вопрос</th><th>Ответов</th><th>Среднее</th><th>Ниже 8</th><th>Распределение</th></tr></thead><tbody id="surveys"></tbody></table></div>
+    <div class="card"><h2>Красные флаги</h2><table><tbody id="flags"></tbody></table></div>
+  </section>
+
+  <section id="esc" class="hide">
+    <div class="card"><h2>Обращения к HR</h2>
+      <table><thead><tr><th>№</th><th>Когда</th><th>Пользователь</th><th>Причина</th><th>Тип</th><th>Статус</th></tr></thead><tbody id="escrows"></tbody></table></div>
+  </section>
+
+  <section id="emp" class="hide">
+    <div class="card"><h2>Новый сотрудник</h2>
+      <div class="form">
+        <label>Имя и фамилия<input type="text" id="en" placeholder="Иван Петров"></label>
+        <label>Площадка<select id="es"><option value="GrPP">ГрПП (офис)</option><option value="GTP">ГТП (предприятие)</option><option value="Luzhniki">Лужники (офис)</option></select></label>
+        <label>Дата выхода<input type="date" id="eh"></label>
+        <label>Конец исп. срока (необяз.)<input type="date" id="ep"></label>
+        <button class="b" id="ecreate">Добавить</button> <span id="emsg" class="muted"></span>
+      </div>
+    </div>
+    <div class="card"><h2>Сотрудники</h2>
+      <table><thead><tr><th>Сотрудник</th><th>Площадка</th><th>Выход</th><th>Привязка</th><th>Прогресс</th><th></th></tr></thead><tbody id="erows"></tbody></table></div>
+    <div class="card hide" id="edetail"></div>
+  </section>
+
+  <section id="scn" class="hide">
+    <div class="card"><h2>Сценарий онбординга</h2>
+      <p class="muted">Все сообщения Корсика по ТЗ. Тексты можно править — изменения применяются сразу (пустое поле возвращает исходный текст). <code>{name}</code> — имя сотрудника.</p>
+      <div id="missing" class="muted"></div></div>
+    <div id="steps"></div>
+  </section>
+
+  <section id="cmd" class="hide">
+    <div class="card"><h2>Команды бота</h2>
+      <p class="muted">Подсказки, которые появляются у сотрудника при вводе «/». Встроенные команды можно изменять, но не удалять. Свои команды:
+        <b>обычная</b> — фиксированный ответ, <b>из базы знаний</b> — Корсик ищет ответ по запросу (если в базе пусто — отвечает запасным текстом). В ответе доступно <code>{name}</code> — имя сотрудника.
+        После сохранения подсказки автоматически обновляются в MAX.</p>
+      <table><thead><tr><th>Команда</th><th>Описание (подсказка)</th><th>Тип</th><th>Вывод</th><th></th></tr></thead><tbody id="cmdrows"></tbody></table>
+      <div style="margin-top:10px"><button class="s" onclick="publishCmds()">Опубликовать в MAX</button> <span id="cmdpub" class="muted"></span></div></div>
+    <div class="card"><h2 id="cmdform_title">Новая команда</h2>
+      <div class="form">
+        <label>Имя (латиница)<input type="text" id="cname" placeholder="transport" size="14"></label>
+        <label>Описание в подсказке<input type="text" id="cdesc" placeholder="Корпоративный транспорт" size="34" maxlength="128"></label>
+        <label>Тип<select id="ckind" onchange="cmdKindUi()"><option value="static">обычная (фиксированный ответ)</option><option value="kb">из базы знаний</option></select></label>
+      </div>
+      <div id="c_reply" style="margin-top:8px"><label class="muted">Ответ (вывод команды)</label><textarea class="t" id="creply"></textarea></div>
+      <div id="c_kb" class="hide" style="margin-top:8px"><label class="muted">Поисковый запрос к базе знаний</label><input type="text" id="cquery" style="width:100%">
+        <label class="muted">Запасной ответ, если в базе ничего нет</label><textarea class="t" id="cfallback"></textarea></div>
+      <div style="margin-top:8px"><button class="b" onclick="saveCmd()">Сохранить</button> <button class="s" onclick="resetCmdForm()">Новая</button> <span id="cmsg" class="muted"></span></div>
+      <pre id="cmdprev" class="hide" style="margin-top:10px"></pre></div>
+  </section>
+
+  <section id="dlg" class="hide">
+    <div class="card"><button class="s" onclick="goTab('esc')">← к эскалациям</button>
+      <h2 id="dtitle" style="margin-top:12px"></h2><div id="dmeta" class="muted"></div>
+      <div id="chat" style="margin:12px 0;max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px"></div>
+      <textarea id="reply" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);font:inherit" placeholder="Ответ сотруднику — бот отправит его в чат"></textarea>
+      <div style="margin-top:8px"><button class="b" id="sendreply">Отправить ответ</button> <button class="s" id="resolve">Закрыть обращение</button> <span id="rmsg" class="muted"></span></div>
+    </div>
+  </section>
+
+  <section id="set" class="hide">
+    <div class="card"><h2>Канал доставки</h2>
+      <p class="muted">Web — тестовый чат (порт 8004). MAX — корпоративный мессенджер (нужен MAX_BOT_TOKEN и вебхук на /max/webhook). Both — оба канала.</p>
+      <select id="mode"><option>web</option><option>max</option><option>both</option></select>
+      <button class="b" id="savemode">Применить</button> <span id="modemsg" class="muted"></span>
+    </div>
+    <div class="card"><h2>MAX</h2><div id="maxstatus" class="muted">загрузка…</div>
+      <div style="margin-top:10px"><button class="s" onclick="loadMax()">Обновить</button>
+      <button class="s" onclick="maxCommands()">Зарегистрировать команды (/)</button>
+      <button class="s" onclick="maxUnsub()">Отключить webhook-подписку</button></div>
+      <h2 style="margin-top:16px">Последние события от MAX</h2><pre id="maxdebug" style="max-height:260px">—</pre></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api = (svc, p, o) => fetch(`/api/${svc}/${p}`, o);
+const fmt = t => new Date(t * 1000).toLocaleString('ru-RU');
+let tab = 'docs';
+function goTab(t) { tab = t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  document.querySelectorAll('main > section').forEach(s => s.classList.toggle('hide', s.id !== t)); refresh(); }
+$('#nav').onclick = e => { const t = e.target.dataset.t; if (t) goTab(t); };
+
+async function loadDocs() {
+  const docs = await (await api('ingest', 'documents')).json();
+  $('#rows').innerHTML = docs.map(d => `<tr><td>${esc(d.title)}</td><td class="muted">${esc(d.filename)}</td>
+    <td><span class="pill ${d.status}">${{ready:'готово',processing:'обработка…',error:'ошибка'}[d.status] || d.status}</span>${d.error ? `<div class="muted">${esc(d.error)}</div>` : ''}</td>
+    <td>${d.pages} / ${d.chunks} / ${d.ocr_pages}</td>
+    <td>${d.status === 'ready' ? `<button class="s" onclick="view('${d.id}','${esc(d.title)}')">Текст</button> ` : ''}<button class="s" onclick="del('${d.id}')">Удалить</button></td></tr>`).join('')
+    || '<tr><td colspan=5 class="muted">Документов пока нет</td></tr>';
+  return docs.some(d => d.status === 'processing');
+}
+async function view(id, title) { $('#viewer').classList.remove('hide'); $('#vtitle').textContent = 'Распознанный текст: ' + title;
+  $('#vtext').textContent = await (await api('ingest', `documents/${id}/text`)).text(); $('#viewer').scrollIntoView(); }
+async function del(id) { if (confirm('Удалить документ и его векторы?')) { await api('ingest', 'documents/' + id, { method: 'DELETE' }); loadDocs(); } }
+async function upload(files) {
+  for (const f of files) {
+    $('#upmsg').textContent = 'Загружаю ' + f.name + '…';
+    const fd = new FormData(); fd.append('file', f);
+    const r = await api('ingest', 'documents', { method: 'POST', body: fd });
+    if (!r.ok) { $('#upmsg').textContent = `Ошибка (${f.name}): ` + ((await r.json()).detail || r.status); return; }
+  }
+  $('#upmsg').textContent = 'Загружено, идёт OCR и индексация…'; poll();
+}
+async function poll() { if (await loadDocs()) setTimeout(poll, 2500); else if (tab === 'docs') $('#upmsg').textContent = ''; }
+const drop = $('#drop'); $('#pick').onclick = e => { e.preventDefault(); $('#file').click(); };
+$('#file').onchange = e => upload(e.target.files);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); }; drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); upload(e.dataTransfer.files); };
+
+const SENT = { positive: ['pos', 'Позитив'], neutral: ['neu', 'Нейтрально'], negative: ['neg', 'Негатив'] };
+function bars(entries, cls) { const max = Math.max(1, ...entries.map(e => e[1]));
+  return entries.map(([k, v]) => `<div class="bar ${cls(k)}"><span style="width:190px">${esc(k)}</span><i style="width:${v / max * 55}%"></i><b>${v}</b></div>`).join('') || '<span class="muted">Данных пока нет</span>'; }
+async function loadDash() {
+  const a = await (await api('pipeline', 'api/analytics')).json();
+  $('#kpis').innerHTML = [['Пользователей', a.users], ['Вопросов', a.user_messages], ['Ответов по базе знаний', a.grounded_rate == null ? '—' : Math.round(a.grounded_rate * 100) + '%'],
+    ['Открытых эскалаций', a.escalations.open || 0], ['Красных флагов', a.red_flags.length]].map(([l, v]) => `<div class="kpi"><b>${v}</b>${l}</div>`).join('');
+  $('#sent').innerHTML = bars(Object.entries(a.sentiments).map(([k, v]) => [SENT[k]?.[1] || k, v]), k => ({ 'Позитив': 'pos', 'Негатив': 'neg' }[k] || 'neu'));
+  $('#topics').innerHTML = bars(a.top_topics, () => '');
+  $('#flags').innerHTML = a.red_flags.map(f => `<tr><td class="muted">${fmt(f.created_at)}</td><td>${esc(f.name || f.user_id)}</td><td>${esc(f.text)}</td></tr>`).join('') || '<tr><td class="muted">Красных флагов нет</td></tr>';
+}
+async function loadEsc() {
+  const rows = await (await api('pipeline', 'api/escalations')).json();
+  $('#escrows').innerHTML = rows.map(e => `<tr class="click" onclick="openDlg(${e.id})"><td>${e.id}</td><td class="muted">${fmt(e.created_at)}</td><td>${esc(e.name || e.user_id)} <span class="muted">(${e.channel})</span></td><td>${esc(e.reason)}</td><td class="muted">${KINDS[e.kind] || e.kind}</td>
+    <td onclick="event.stopPropagation()"><select onchange="setEsc(${e.id}, this.value)">${['open', 'in_progress', 'resolved'].map(s => `<option ${s === e.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('') || '<tr><td colspan=6 class="muted">Обращений нет</td></tr>';
+}
+let curEsc = null;
+async function openDlg(id) { curEsc = id; goTab('dlg'); }
+async function loadDlg() {
+  if (!curEsc) return;
+  const d = await (await api('pipeline', `api/escalations/${curEsc}`)).json(), e = d.escalation;
+  $('#dtitle').textContent = `Обращение №${e.id} · ${e.name || e.user_id}`;
+  $('#dmeta').textContent = `id ${e.user_id} · ${e.channel} · ${KINDS[e.kind] || e.kind} · ${e.status} · ${e.reason}`;
+  const who = { user: 'Сотрудник', assistant: 'Корсик', hr: 'HR' };
+  const box = $('#chat'), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  box.innerHTML = d.messages.map(m => `<div class="m ${m.role}"><small>${who[m.role] || m.role} · ${fmt(m.created_at)}</small>${esc(m.text)}</div>`).join('');
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+$('#sendreply').onclick = async () => { const text = $('#reply').value.trim(); if (!text) return;
+  const r = await api('pipeline', `api/escalations/${curEsc}/reply`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text }) });
+  const j = await r.json(); $('#rmsg').textContent = !r.ok ? 'Ошибка' : j.delivered ? 'Отправлено сотруднику' : 'Сохранено, но не доставлено: ' + j.error;
+  if (r.ok) { $('#reply').value = ''; loadDlg(); } };
+$('#resolve').onclick = async () => { await setEsc(curEsc, 'resolved'); $('#rmsg').textContent = 'Обращение закрыто'; loadDlg(); };
+setInterval(() => { if (tab === 'dlg') loadDlg(); }, 4000);
+const setEsc = (id, status) => api('pipeline', `api/escalations/${id}/status`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+
+// ---------- сотрудники ----------
+const KINDS = { agent: 'бот предложил, сотрудник подтвердил', forward: 'написал через Корсика', unanswered: 'вопрос без ответа в базе', intent: 'бот предложил по смыслу вопроса, сотрудник подтвердил', command: 'команда /HR', contact: 'просит рекрутера', survey: 'флаг из опроса', sentiment: 'красный флаг (тональность)' };
+const SITES = { GrPP: 'ГрПП', GTP: 'ГТП', Luzhniki: 'Лужники' };
+const STATUS = { done: 'готово', sent: 'отправлено', skipped: 'пропущено', error: 'ошибка', due: 'пора отправить', scheduled: 'по расписанию', waiting_recruiter: 'ждёт отмашки', 'n/a': 'не для этой площадки' };
+let curEmp = null;
+async function loadEmp() {
+  const rows = await (await api('pipeline', 'api/employees')).json();
+  $('#erows').innerHTML = rows.map(e => `<tr class="click" onclick="openEmp(${e.id})"><td>${esc(e.name)}</td><td>${SITES[e.site]}</td><td>${esc(e.hire_date)}</td>
+    <td>${e.user_id ? esc(e.user_name || e.user_id) + ` <span class="muted">(${e.channel})</span>` : '<span class="muted">не привязан</span>'}</td>
+    <td>${e.progress.done} / ${e.progress.total}</td><td class="muted">${e.code}</td></tr>`).join('') || '<tr><td colspan=6 class="muted">Сотрудников пока нет</td></tr>';
+  if (curEmp) openEmp(curEmp, true);
+}
+$('#ecreate').onclick = async () => {
+  const body = { name: $('#en').value.trim(), site: $('#es').value, hire_date: $('#eh').value, probation_end: $('#ep').value || null };
+  if (!body.name || !body.hire_date) { $('#emsg').textContent = 'Укажите имя и дату выхода'; return; }
+  const r = await api('pipeline', 'api/employees', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!r.ok) { $('#emsg').textContent = 'Ошибка: ' + ((await r.json()).detail || r.status); return; }
+  const e = await r.json(); $('#emsg').textContent = ''; $('#en').value = ''; curEmp = e.id; loadEmp();
+};
+async function openEmp(id, keep) {
+  curEmp = id;
+  const e = await (await api('pipeline', 'api/employees/' + id)).json(), users = await (await api('pipeline', 'api/known-users')).json();
+  const box = $('#edetail'); box.classList.remove('hide');
+  const tl = e.timeline.map(t => `<tr><td>${esc(t.title)}<div class="muted">${esc(t.when)}</div></td><td class="muted">${t.due ? t.due.replace('T', ' ').slice(0, 16) : '—'}</td>
+    <td><span class="st ${t.status}">${STATUS[t.status] || t.status}</span>${e.pending === t.id ? ' <span class="st sent">ждёт ответа</span>' : ''}</td>
+    <td>${t.status === 'n/a' ? '' : `<button class="s" onclick="sendStep(${e.id},'${t.id}')">Отправить сейчас</button>`}</td></tr>`).join('');
+  const ans = e.answers.map(a => `<tr><td>${esc(a.survey)}</td><td>${esc(a.qkey)}</td><td>${esc(a.label || a.value)}</td><td>${esc(a.comment || '')}</td></tr>`).join('') || '<tr><td colspan=4 class="muted">Ответов пока нет</td></tr>';
+  box.innerHTML = `<h2>${esc(e.name)} · ${SITES[e.site]} · выход ${esc(e.hire_date)}${e.is_office ? '' : ' · не офис'}</h2>
+    <p>Код привязки: <span class="code">${e.code}</span> ${e.link ? `· ссылка: <a href="${esc(e.link)}" target="_blank">${esc(e.link)}</a>` : ''}<br>
+    <span class="muted">Сотрудник пишет боту <code>/start ${e.code}</code> (в MAX — по ссылке с кнопкой «Начать»).</span></p>
+    <div class="form"><label>Привязать к пользователю<select id="bindsel">${users.map(u => `<option value="${esc(u.user_id)}" ${u.user_id === e.user_id ? 'selected' : ''}>${esc(u.name)} (${u.channel})</option>`).join('')}</select></label>
+      <button class="b" onclick="bindEmp(${e.id})">Привязать и отправить знакомство</button>
+      <button class="s" onclick="empAct(${e.id},'unbind')">Отвязать</button></div>
+    <p style="margin-top:10px">Сейчас: ${e.user_id ? `привязан к <b>${esc(e.user_name || e.user_id)}</b> (${e.channel}), обращение на «${e.form === 'vy' ? 'вы' : e.form === 'ty' ? 'ты' : 'не выбрано'}»` : 'не привязан'}</p>
+    <div class="form"><button class="s" onclick="empAct(${e.id},'recruiter-ok')">${e.recruiter_ok ? '✅ Отмашка рекрутера дана' : 'Дать отмашку рекрутера'}</button>
+      <button class="b" onclick="empAct(${e.id},'send-next')">Отправить следующий этап${e.next_step ? ' (' + e.next_step + ')' : ''}</button>
+      <button class="s" onclick="if(confirm('Сбросить весь прогресс сотрудника?'))empAct(${e.id},'reset')">Сбросить прогресс</button>
+      <button class="s" onclick="delEmp(${e.id})">Удалить</button> <span id="amsg" class="muted"></span></div>
+    <div class="form" style="margin-top:10px"><label>Тест: «сейчас» по Москве<input type="datetime-local" id="simnow"></label>
+      <button class="s" onclick="simTick()">Прогнать планировщик на это время</button>
+      <button class="s" onclick="ageQ(${e.id})">Состарить неотвеченный опрос на 25 ч</button></div>
+    <h2 style="margin-top:16px">Таймлайн</h2><table><thead><tr><th>Этап</th><th>Время</th><th>Статус</th><th></th></tr></thead><tbody>${tl}</tbody></table>
+    <h2 style="margin-top:16px">Ответы на опросы</h2><table><thead><tr><th>Опрос</th><th>Вопрос</th><th>Ответ</th><th>Комментарий</th></tr></thead><tbody>${ans}</tbody></table>`;
+  if (!keep) box.scrollIntoView();
+}
+async function bindEmp(id) { const r = await api('pipeline', `api/employees/${id}/bind`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: $('#bindsel').value }) }); await afterAct(r, id); }
+async function sendStep(id, step) { const r = await api('pipeline', `api/employees/${id}/send`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ step_id: step }) }); await afterAct(r, id); }
+async function empAct(id, act) { const r = await api('pipeline', `api/employees/${id}/${act}`, { method: 'POST' }); await afterAct(r, id); }
+async function afterAct(r, id) { const msg = r.ok ? 'Готово' : 'Ошибка: ' + ((await r.json()).detail || r.status); await loadEmp(); $('#amsg').textContent = msg; }
+async function simTick() { const v = $('#simnow').value; const r = await api('pipeline', 'api/scheduler/tick', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ now: v ? v + ':00' : null }) });
+  await loadEmp(); $('#amsg').textContent = r.ok ? 'Планировщик: отправлено ' + (await r.json()).sent : 'Ошибка'; }
+async function ageQ(id) { await afterAct(await api('pipeline', `api/employees/${id}/age-pending`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ hours: 25 }) }), id); }
+async function delEmp(id) { if (confirm('Удалить сотрудника?')) { await api('pipeline', 'api/employees/' + id, { method: 'DELETE' }); curEmp = null; $('#edetail').classList.add('hide'); loadEmp(); } }
+setInterval(() => { if (tab === 'emp' && curEmp) openEmp(curEmp, true); }, 6000);
+
+// ---------- сценарий ----------
+async function loadScn() {
+  const d = await (await api('pipeline', 'api/scenario')).json();
+  $('#missing').innerHTML = '📎 Материалы из ТЗ, которых пока нет (картинки/PDF; сообщения без них отправляются без вложений): ' + d.missing_assets.map(esc).join(', ');
+  const tags = i => [i.sites ? i.sites.map(x => SITES[x]).join('/') : null, i.office === true ? 'офис' : i.office === false ? 'не офис' : null].filter(Boolean).join(' · ');
+  $('#steps').innerHTML = d.steps.map(st => `<details><summary>${esc(st.title)} <span class="muted">· ${esc(st.when)}${st.gate ? ' · по отмашке рекрутера' : ''}${st.survey ? ' · опрос' : ''}${tags(st) ? ' · ' + tags(st) : ''}</span></summary>
+    ${st.items.map(i => `<div class="item"><small>${i.type}${tags(i) ? ' · ' + tags(i) : ''}${i.asset ? ' · 📎 ' + esc(i.asset) : ''}${i.options.length ? ' · варианты: ' + i.options.map(esc).join(' / ') : ''}${i.edited ? ' · ✏️ изменено' : ''}</small>
+      ${i.editable ? `<textarea class="t" id="t_${st.id}_${i.idx}">${esc(i.text)}</textarea><button class="s" onclick="saveText('${st.id}',${i.idx})">Сохранить</button>` : `<div>${esc(i.text) || '<span class="muted">ответ из базы знаний</span>'}</div>`}</div>`).join('')}</details>`).join('');
+}
+async function saveText(step, idx) { const r = await api('pipeline', 'api/scenario/text', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ step_id: step, idx, text: $(`#t_${step}_${idx}`).value }) }); alert(r.ok ? 'Сохранено' : 'Ошибка'); }
+
+async function loadSurveys() {
+  const st = await (await api('pipeline', 'api/surveys')).json();
+  $('#surveys').innerHTML = st.map(q => `<tr><td>${esc(q.survey)}</td><td>${esc(q.qkey)}</td><td>${q.n}</td><td>${q.avg == null ? '—' : q.avg}</td><td>${q.qtype === 'scale' ? q.low : '—'}</td>
+    <td class="muted">${Object.entries(q.dist).map(([k, v]) => esc(k) + ': ' + v).join(', ')}</td></tr>`).join('') || '<tr><td colspan=6 class="muted">Ответов пока нет</td></tr>';
+}
+
+// ---------- команды ----------
+let cmdEdit = null, cmdCache = [];
+const CMD_KIND = { start: 'встроенная', hr: 'встроенная', help: 'встроенная', kb: 'из базы знаний', static: 'обычная' };
+function cmdKindUi(kind) {
+  const k = kind || $('#ckind').value;
+  $('#c_kb').classList.toggle('hide', k !== 'kb'); $('#c_reply').classList.toggle('hide', k === 'kb');
+}
+async function loadCmds() {
+  cmdCache = await (await api('pipeline', 'api/commands')).json();
+  $('#cmdrows').innerHTML = cmdCache.map(c => `<tr><td><b>/${esc(c.name)}</b></td><td>${esc(c.description)}</td>
+    <td>${CMD_KIND[c.kind] || c.kind}${c.builtin && c.kind === 'kb' ? ' · встроенная' : ''}</td>
+    <td class="muted">${c.kind === 'kb' ? 'запрос: «' + esc(c.query) + '»<br>запасной: «' + esc(c.fallback.slice(0, 70)) + '»' : esc(c.reply.length > 110 ? c.reply.slice(0, 110) + '…' : c.reply)}</td>
+    <td style="white-space:nowrap"><button class="s" onclick="editCmd('${c.name}')">Изменить</button> <button class="s" onclick="previewCmd('${c.name}')">Проверить</button>
+      ${c.builtin ? '' : `<button class="s" onclick="delCmd('${c.name}')">Удалить</button>`}</td></tr>`).join('');
+}
+function resetCmdForm() {
+  cmdEdit = null; $('#cmdform_title').textContent = 'Новая команда'; $('#cname').disabled = false; $('#ckind').disabled = false;
+  ['#cname', '#cdesc', '#creply', '#cquery', '#cfallback'].forEach(i => $(i).value = ''); $('#ckind').value = 'static'; cmdKindUi(); $('#cmsg').textContent = '';
+}
+function editCmd(name) {
+  const c = cmdCache.find(x => x.name === name); cmdEdit = name;
+  $('#cmdform_title').textContent = 'Правка /' + name; $('#cname').value = name; $('#cname').disabled = true;
+  $('#cdesc').value = c.description; $('#creply').value = c.reply; $('#cquery').value = c.query; $('#cfallback').value = c.fallback;
+  $('#ckind').value = c.kind === 'kb' ? 'kb' : 'static'; $('#ckind').disabled = true; cmdKindUi(c.kind === 'kb' ? 'kb' : 'static'); $('#cmdform_title').scrollIntoView();
+}
+async function saveCmd() {
+  const body = { description: $('#cdesc').value, reply: $('#creply').value, query: $('#cquery').value, fallback: $('#cfallback').value };
+  let r;
+  if (cmdEdit) r = await api('pipeline', 'api/commands/' + cmdEdit, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  else r = await api('pipeline', 'api/commands', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...body, name: $('#cname').value, kind: $('#ckind').value }) });
+  const j = await r.json();
+  if (!r.ok) { $('#cmsg').textContent = 'Ошибка: ' + (j.detail || r.status); return; }
+  $('#cmsg').textContent = 'Сохранено. ' + pubText(j); resetCmdForm(); loadCmds();
+}
+const pubText = j => j.published ? 'Подсказки в MAX обновлены ✅' : (j.error ? 'В MAX не обновилось: ' + j.error : 'В MAX не опубликовано (' + (j.reason || 'нет токена') + ')');
+async function delCmd(n) { if (!confirm('Удалить команду /' + n + '?')) return; const j = await (await api('pipeline', 'api/commands/' + n, { method: 'DELETE' })).json(); $('#cmdpub').textContent = pubText(j); loadCmds(); }
+async function publishCmds() { const r = await api('pipeline', 'api/max/commands', { method: 'POST' }); $('#cmdpub').textContent = r.ok ? 'Подсказки в MAX обновлены ✅' : 'Ошибка: ' + ((await r.json()).detail || r.status); }
+async function previewCmd(n) {
+  const pre = $('#cmdprev'); pre.classList.remove('hide'); pre.textContent = 'Считаю…';
+  const j = await (await api('pipeline', `api/commands/${n}/preview`, { method: 'POST' })).json();
+  pre.textContent = '/' + n + ' →\n\n' + j.messages.map(m => m.text + (m.buttons ? '\n[' + m.buttons.flat().map(b => b.text).join(' | ') + ']' : '')).join('\n\n'); pre.scrollIntoView();
+}
+async function loadMax() {
+  const st = await (await api('pipeline', 'api/max/status')).json(), p = st.poller || {};
+  const t = x => x ? new Date(x * 1000).toLocaleTimeString('ru-RU') : '—';
+  const rows = [['Токен', st.configured ? '✅ задан' : '❌ MAX_BOT_TOKEN не задан'], ['Бот', st.bot ? `${esc(st.bot.first_name)} (@${esc(st.bot.username)})` : '—'],
+    ['Транспорт', st.transport + (st.transport === 'polling' ? ' (long polling, для разработки)' : ' (webhook)')], ['Режим канала', st.mode],
+    ['Polling: последний запрос', t(p.last_poll)], ['Последнее событие', t(p.last_update)], ['Обработано', p.processed ?? 0],
+    ['Команды (подсказки по «/»)', st.bot && st.bot.commands && st.bot.commands.length ? st.bot.commands.map(c => '/' + esc(c.name)).join(' ') : 'не зарегистрированы'],
+    ['Webhook-подписки', st.subscriptions == null ? '—' : st.subscriptions.length ? st.subscriptions.map(s => esc(s.url)).join(', ') + ' ⚠️ polling не работает при активной подписке' : 'нет'],
+    ['Ошибка', (st.error || p.last_error) ? `<span style="color:var(--bad)">${esc(st.error || p.last_error)}</span>` : 'нет']];
+  $('#maxstatus').innerHTML = '<table>' + rows.map(([k, v]) => `<tr><td style="width:240px">${k}</td><td>${v}</td></tr>`).join('') + '</table>';
+  const dbg = await (await api('pipeline', 'api/max/debug')).json();
+  $('#maxdebug').textContent = dbg.length ? dbg.map(d => JSON.stringify(d.update)).join('\n\n') : 'событий пока нет';
+}
+async function maxCommands() { const r = await api('pipeline', 'api/max/commands', { method: 'POST' }); alert(r.ok ? 'Команды зарегистрированы в MAX' : 'Ошибка: ' + ((await r.json()).detail || r.status)); loadMax(); }
+async function maxUnsub() { const r = await (await api('pipeline', 'api/max/unsubscribe', { method: 'POST' })).json(); alert('Удалены подписки: ' + (r.removed.join(', ') || 'нет')); loadMax(); }
+async function loadMode() { loadMax(); $('#mode').value = (await (await api('pipeline', 'api/mode')).json()).mode; }
+$('#savemode').onclick = async () => { const r = await api('pipeline', 'api/mode', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ mode: $('#mode').value }) });
+  $('#modemsg').textContent = r.ok ? 'Применено' : 'Ошибка'; };
+function refresh() { ({ docs: poll, dash: () => { loadDash(); loadSurveys(); }, esc: loadEsc, dlg: loadDlg, emp: loadEmp, scn: loadScn, cmd: () => { loadCmds(); cmdKindUi(); }, set: loadMode })[tab](); }
+refresh();
+</script>
+</body>
+</html>

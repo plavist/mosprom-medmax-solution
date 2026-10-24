@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Корсик — тестовый чат</title>
+<style>
+  :root { --bg:#f3f6f9; --card:#fff; --ink:#14212b; --muted:#6b7b88; --brand:#0a7d6e; --user:#0a7d6e; --line:#dde5ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,sans-serif; background:var(--bg); color:var(--ink); height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; max-width:760px; padding:14px 16px; display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  .badge { font-size:12px; padding:3px 10px; border-radius:99px; background:#e3f3f0; color:var(--brand); border:1px solid #bfe3dc; }
+  .badge.max { background:#e9e6fb; color:#4b3fb8; border-color:#cdc7f3; }
+  #log { flex:1; width:100%; max-width:760px; overflow:auto; padding:8px 16px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:82%; padding:10px 14px; border-radius:14px; background:var(--card); border:1px solid var(--line); white-space:pre-wrap; }
+  .msg.user { align-self:flex-end; background:var(--user); color:#fff; border-color:var(--user); }
+  .src { margin-top:6px; font-size:12px; color:var(--muted); }
+  .msg.hr { background:#e9e6fb; border-color:#cdc7f3; }
+  .who { font-size:12px; font-weight:600; color:#4b3fb8; margin-bottom:2px; }
+  .btns { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .btns .row { display:flex; gap:6px; flex-wrap:wrap; }
+  .btns button { padding:8px 12px; background:#fff; color:var(--brand); border:1px solid var(--brand); border-radius:10px; text-align:left; font-size:14px; }
+  .btns button:hover:not(:disabled) { background:#e3f3f0; }
+  .btns.used button { opacity:.45; cursor:default; }
+  .tag { display:inline-block; margin-top:6px; font-size:12px; padding:2px 8px; border-radius:99px; background:#fff3d6; color:#8a5a00; }
+  form { width:100%; max-width:760px; padding:12px 16px 18px; display:flex; gap:8px; }
+  input[type=text] { flex:1; padding:12px 14px; border-radius:12px; border:1px solid var(--line); font:inherit; }
+  button { padding:0 18px; border-radius:12px; border:0; background:var(--brand); color:#fff; font:inherit; cursor:pointer; }
+  button.ghost { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  button:disabled { opacity:.5; cursor:default; }
+  .hint { font-size:12px; color:var(--muted); }
+  select { padding:7px 10px; border-radius:10px; border:1px solid var(--line); font:inherit; background:#fff; }
+.msg .pic { display:block; width:100%; max-width:260px; border-radius:10px; margin-bottom:6px }
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 Корсик <span class="hint">тестовый веб-канал</span></h1>
+  <label class="hint">Вы:
+    <select id="who" title="От чьего имени вы пишете"></select>
+  </label>
+  <button type="button" class="ghost" id="newuser" style="padding:6px 12px">+ пользователь</button>
+  <span id="mode" class="badge">…</span>
+</header>
+<div id="log"></div>
+<form id="form">
+  <button type="button" class="ghost" id="hr" title="Связаться с HR">/HR</button>
+  <input type="text" id="text" placeholder="Задай вопрос про компанию…" autocomplete="off" autofocus>
+  <button id="send">Отправить</button>
+</form>
+<script>
+const log = document.getElementById('log'), input = document.getElementById('text'), send = document.getElementById('send'), who = document.getElementById('who');
+let uid = null, seen = new Set(), gen = 0;
+const md = t => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+function add(role, text, extra) {
+  const d = document.createElement('div'); d.className = 'msg ' + role;
+  if (extra && extra.image) { const im = document.createElement('img'); im.src = '/assets/' + extra.image; im.className = 'pic'; d.appendChild(im); }
+  d.insertAdjacentHTML('beforeend', md(text));
+  if (extra && extra.sources && extra.sources.length) {
+    const s = document.createElement('div'); s.className = 'src';
+    const uniq = [...new Set(extra.sources.map(x => `${x.title}, стр. ${x.page}`))].slice(0, 4);
+    s.textContent = '📎 ' + uniq.join(' · '); d.appendChild(s);
+  }
+  if (extra && extra.escalated) { const t = document.createElement('div'); t.className = 'tag'; t.textContent = 'Передано HR'; d.appendChild(t); }
+  if (extra && extra.buttons && extra.buttons.length) {
+    const box = document.createElement('div'); box.className = 'btns';
+    extra.buttons.forEach(r => { const row = document.createElement('div'); row.className = 'row';
+      r.forEach(b => { const el = document.createElement('button'); el.type = 'button'; el.textContent = b.text;
+        el.onclick = () => { box.classList.add('used'); box.querySelectorAll('button').forEach(x => x.disabled = true); ask(null, b); }; row.appendChild(el); });
+      box.appendChild(row); });
+    d.appendChild(box);
+  }
+  log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+}
+function addHr(m) { seen.add(m.id); const d = add('hr', m.text); const w = document.createElement('div'); w.className = 'who'; w.textContent = '👤 HR-специалист'; d.prepend(w); }
+function addBot(m, i, all, extra) { seen.add(m.id); add('bot', m.text, { image: m.image, buttons: i === all.length - 1 ? m.buttons : null, ...(extra || {}) }); }
+async function ask(text, btn) {
+  const me = uid, g = gen;
+  add('user', btn ? btn.text : text); send.disabled = true;
+  const wait = add('bot', '…');
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(btn ? { user_id: me, payload: btn.payload } : { user_id: me, message: text }) });
+    const j = await r.json();
+    wait.remove();
+    if (g !== gen) return;               // пользователя переключили — ответ уже не сюда
+    if (!r.ok) add('bot', '⚠️ ' + (j.detail || r.status));
+    else j.messages.forEach((m, i) => add('bot', m.text, { image: m.image, buttons: m.buttons, ...(i === j.messages.length - 1 ? { sources: j.sources, escalated: j.escalated } : {}) }));
+  } catch (e) { wait.remove(); if (g === gen) add('bot', '⚠️ Сеть недоступна'); }
+  send.disabled = false; input.focus();
+}
+async function loadHistory() {
+  log.innerHTML = ''; seen = new Set(); gen++; send.disabled = false;
+  const h = await (await fetch('/api/history/' + uid)).json();
+  h.forEach((m, i) => { seen.add(m.id);
+    if (m.role === 'hr') return addHr(m);
+    if (m.role === 'user') return add('user', m.text);
+    add('bot', m.text, { image: m.image, buttons: i === h.length - 1 ? m.buttons : null }); });
+  if (!h.length) add('bot', 'Привет! Я Корсик. Спрашивай про правила, документы и адаптацию 🙂');
+}
+async function loadUsers(select) {
+  const users = await (await fetch('/api/users')).json();
+  who.innerHTML = users.map(u => `<option value="${u.user_id}">${u.name.replace(/[<>&"]/g, '')}</option>`).join('');
+  if (!users.length) { await createUser(prompt('Как вас зовут?', 'Иван') || 'Тестовый пользователь'); return; }
+  uid = select || (users.some(u => u.user_id === localStorage.uid) ? localStorage.uid : users[0].user_id);
+  who.value = uid; localStorage.uid = uid; await loadHistory();
+}
+async function createUser(name) {
+  const u = await (await fetch('/api/users', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name }) })).json();
+  await loadUsers(u.user_id);
+}
+who.onchange = () => { uid = who.value; localStorage.uid = uid; loadHistory(); };
+document.getElementById('newuser').onclick = () => { const n = (prompt('Имя нового пользователя (например, «Анна Иванова»)') || '').trim(); if (n) createUser(n); };
+document.getElementById('form').onsubmit = e => { e.preventDefault(); const t = input.value.trim(); if (t && uid) { input.value = ''; ask(t); } };
+document.getElementById('hr').onclick = () => uid && ask('/HR');
+fetch('/api/mode').then(r => r.json()).then(m => { const b = document.getElementById('mode'); b.textContent = 'режим: ' + m.mode; if (m.mode !== 'web') b.classList.add('max'); });
+// сообщения, пришедшие сами (рассылки по сценарию, ответы HR)
+setInterval(async () => { if (!uid) return; try { const me = uid; const h = await (await fetch('/api/history/' + me)).json(); if (me !== uid) return;
+  h.filter(m => !seen.has(m.id) && (m.role === 'hr' || m.kind === 'proactive')).forEach((m, i, all) => {
+    seen.add(m.id); if (m.role === 'hr') return addHr(m);
+    add('bot', m.text, { image: m.image, buttons: m.id === h[h.length - 1].id ? m.buttons : null }); }); } catch (e) {} }, 3000);
+loadUsers();
+</script>
+</body>
+</html>

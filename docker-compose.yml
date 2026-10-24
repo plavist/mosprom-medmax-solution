@@ -1,0 +1,62 @@
+name: polyplastic
+
+x-common: &common
+  restart: unless-stopped
+  env_file: [.env]
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    ports: ["127.0.0.1:6333:6333"]
+    volumes: [qdrant_data:/qdrant/storage]
+
+  llm-gateway:
+    <<: *common
+    build: ./services/llm-gateway
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.8-27b}
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-openrouter}
+      EMBED_MODEL: ${EMBED_MODEL:-qwen/qwen3-embedding-8b}
+    ports: ["127.0.0.1:8001:8000"]
+
+  ingest:
+    <<: *common
+    build: ./services/ingest
+    environment:
+      GATEWAY_URL: http://llm-gateway:8000
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-polyplastic_kb}
+      DATA_DIR: /data
+    volumes: [ingest_data:/data]
+    ports: ["127.0.0.1:8002:8000"]
+    depends_on: [qdrant, llm-gateway]
+
+  pipeline:
+    <<: *common
+    build: ./services/pipeline
+    environment:
+      GATEWAY_URL: http://llm-gateway:8000
+      INGEST_URL: http://ingest:8000
+      DATA_DIR: /data
+      CHANNEL_MODE: ${CHANNEL_MODE:-web}   # web | max | both (меняется и в админке)
+    volumes: [pipeline_data:/data]
+    ports: ["8004:8000"]
+    depends_on: [ingest, llm-gateway]
+
+  admin:
+    <<: *common
+    build: ./services/admin
+    environment:
+      INGEST_URL: http://ingest:8000
+      PIPELINE_URL: http://pipeline:8000
+      ADMIN_USER: ${ADMIN_USER:-hr}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+    ports: ["8003:8000"]
+    depends_on: [ingest, pipeline]
+
+volumes:
+  qdrant_data:
+  ingest_data:
+  pipeline_data:
