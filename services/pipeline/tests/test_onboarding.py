@@ -599,5 +599,5 @@ async def test_multi_stale_option_and_scenario_helpers():
     assert res["reply"] == "Этот вопрос уже пройден 🙂"
     assert sc.add_months(__import__("datetime").date(2026, 12, 31), 2) == __import__("datetime").date(2027, 2, 28)
     # сообщение с обязательным вложением: нет файла и нет fallback → пропускаем, есть fallback → шлём его
-    assert engine._plain({"req": True, "asset": "a", "fallback": None}, "t") is None
-    assert engine._plain({"req": True, "asset": "a", "fallback": "f"}, "t") == "f" and engine._plain({"asset": "a"}, "t") == "t"
+    assert engine._plain({"req": True, "asset": "a", "fallback": None}, "t", None) is None
+    assert engine._plain({"req": True, "asset": "a", "fallback": "f"}, "t", None) == "f" and engine._plain({"asset": "a"}, "t", None) == "t"

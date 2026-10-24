@@ -79,16 +79,16 @@ def _cond_ok(emp: dict, step: dict, cond) -> bool:
     return any(v in ans.split(",") for v in values)
 
 
-def _plain(it: dict, text: str) -> str | None:
+def _plain(it: dict, text: str, image: str | None) -> str | None:
     """Текст сообщения; None — пропустить (сообщение бессмысленно без вложения, которого пока нет)."""
-    return it.get("fallback") if it.get("req") and it.get("asset") and not assets.file(it["asset"]) else text
+    return it.get("fallback") if it.get("req") and it.get("asset") and not image else text
 
 
 async def _sub(emp: dict, items: list) -> list[dict]:
     """Вложенные элементы (после ответа): сообщения и ответы из базы знаний."""
     out: list[dict] = []
     for it in items:
-        text = await _kb(emp, it) if it["t"] == "kb" else _plain(it, it["text"])
+        text = await _kb(emp, it) if it["t"] == "kb" else _plain(it, it["text"], assets.file(it.get("asset")))
         if text:
             out.append(msg(text, image=assets.file(it.get("asset"))))
     return out
@@ -107,9 +107,10 @@ async def run_items(emp: dict, step: dict, start: int = 0) -> tuple[list[dict], 
         if not sc.applies(it, emp) or (it.get("cond") and not _cond_ok(emp, step, it["cond"])):
             continue
         if it["t"] == "msg":
-            text = _plain(it, item_text(step["id"], idx, it))
+            image = assets.for_item(step["id"], idx, it)
+            text = _plain(it, item_text(step["id"], idx, it), image)
             if text:
-                out.append(msg(text, hrflow.option_buttons(it["hr"]) if it.get("hr") else None, assets.file(it.get("asset"))))
+                out.append(msg(text, hrflow.option_buttons(it["hr"]) if it.get("hr") else None, image))
         else:
             st = emp["state"]
             prev = st.get("pending")

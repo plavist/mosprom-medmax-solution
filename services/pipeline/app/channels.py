@@ -99,7 +99,7 @@ async def upload_image(fname: str) -> str:
         raise RuntimeError(f"MAX /uploads {r.status_code}: {r.text[:200]}")
     path = assets.path(fname)
     async with httpx.AsyncClient(timeout=60) as c:  # CDN загрузки — на обычных публичных сертификатах
-        up = await c.post(r.json()["url"], files={"data": (fname, path.read_bytes(), "image/jpeg")})
+        up = await c.post(r.json()["url"], files={"data": (fname, path.read_bytes(), assets.media_type(fname))})
     if up.status_code >= 300:
         raise RuntimeError(f"загрузка картинки {up.status_code}: {up.text[:200]}")
     token = next(iter(up.json()["photos"].values()))["token"]

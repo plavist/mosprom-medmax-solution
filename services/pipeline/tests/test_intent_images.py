@@ -134,3 +134,68 @@ async def test_send_max_error_without_image_is_raised(monkeypatch):
     _max_mocks()
     with pytest.raises(RuntimeError):
         await channels.send_max("1", "слово " * 1500 + "x", image="img2.jpg")  # ошибка во втором куске не маскируется
+
+
+# ---------- смена картинок сценария из админки ----------
+from test_api import client  # noqa: E402
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+JPG = b"\xff\xd8\xff" + b"1" * 20
+
+
+def _item():
+    step = sc.STEPS[0]
+    idx = next(i for i, it in enumerate(step["items"]) if it["t"] == "msg" and it.get("asset") and assets.file(it["asset"]))
+    return step, idx
+
+
+def test_upload_validates_and_serves():
+    h = {}
+    assert client.post("/api/scenario/images", content=b"text", headers=h).status_code == 400
+    assert client.post("/api/scenario/images", content=JPG + b"0" * assets.MAX_UPLOAD, headers=h).status_code == 400
+    f = client.post("/api/scenario/images", content=PNG, headers=h).json()["file"]
+    assert f.startswith("up_") and f.endswith(".png")
+    r = client.get(f"/assets/{f}")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert assets.media_type("a.jpg") == "image/jpeg"
+    assert any(x["file"] == f and x["uploaded"] for x in client.get("/api/scenario/images", headers=h).json())
+    assert client.get("/assets/up_000000000000.png").status_code == 404
+
+
+def test_choose_replace_remove_reset_image():
+    h = {}
+    step, idx = _item()
+    it = step["items"][idx]
+    default = assets.file(it["asset"])
+    put = lambda image: client.put("/api/scenario/image", json={"step_id": step["id"], "idx": idx, "image": image}, headers=h)
+    assert assets.for_item(step["id"], idx, it) == default
+    up = client.post("/api/scenario/images", content=JPG, headers=h).json()["file"]
+    assert put(up).json()["image"] == up and assets.for_item(step["id"], idx, it) == up
+    view = next(i for s in client.get("/api/scenario", headers=h).json()["steps"] if s["id"] == step["id"] for i in s["items"] if i["idx"] == idx)
+    assert view["image"] == up and view["image_choice"] == up and view["can_image"]
+    assert put("none").json()["image"] is None and assets.for_item(step["id"], idx, it) is None
+    assert put("").json()["image"] == default and assets.for_item(step["id"], idx, it) == default
+    assert put("img3.jpg").json()["image"] == "img3.jpg"
+    assert put("nope.jpg").status_code == 400
+    assert client.put("/api/scenario/image", json={"step_id": "zz", "idx": 0, "image": ""}, headers=h).status_code == 404
+    q = next((s, i) for s in sc.STEPS for i, x in enumerate(s["items"]) if x["t"] != "msg")
+    assert client.put("/api/scenario/image", json={"step_id": q[0]["id"], "idx": q[1], "image": ""}, headers=h).status_code == 404
+
+
+@respx.mock
+async def test_engine_uses_chosen_image_and_none_drops_required_asset_message():
+    llm_router()
+    emp = make_emp(user="i4")
+    step, idx = _item()
+    db.set_setting(f"image:{step['id']}:{idx}", "img5.jpg")
+    msgs, _ = await engine.run_items(emp, step)
+    assert any(m.get("image") == "img5.jpg" for m in msgs)
+    db.set_setting(f"image:{step['id']}:{idx}", "none")
+    msgs, _ = await engine.run_items(emp, step)
+    assert not any(m.get("image") == "img5.jpg" for m in msgs)
+    # req-сообщение (карта) без файла пропускается, а с выбранной картинкой уходит
+    s2 = next(s for s in sc.STEPS if any(it["t"] == "msg" and it.get("req") for it in s["items"]))
+    i2 = next(i for i, it in enumerate(s2["items"]) if it["t"] == "msg" and it.get("req"))
+    assert assets.for_item(s2["id"], i2, s2["items"][i2]) is None
+    db.set_setting(f"image:{s2['id']}:{i2}", "img4.jpg")
+    assert engine._plain(s2["items"][i2], "t", assets.for_item(s2["id"], i2, s2["items"][i2])) == "t"

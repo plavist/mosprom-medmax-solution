@@ -212,7 +212,7 @@ async def asset_file(fname: str):
     p = assets.path(fname)
     if not p:
         raise HTTPException(404, "no such asset")
-    return FileResponse(p, media_type="image/jpeg")
+    return FileResponse(p, media_type=assets.media_type(fname))
 
 
 @app.get("/api/history/{user_id}")
@@ -589,7 +589,8 @@ async def scenario_view():
         for idx, it in enumerate(step["items"]):
             items.append({"idx": idx, "type": it["t"], "text": engine.item_text(step["id"], idx, it) or it.get("query", ""),
                           "edited": bool(db.get_setting(f"text:{step['id']}:{idx}")), "sites": it.get("sites"),
-                          "office": it.get("office"), "asset": it.get("asset"), "asset_ready": bool(assets.file(it.get("asset"))), "editable": "text" in it,
+                          "office": it.get("office"), "asset": it.get("asset"), "image": assets.for_item(step["id"], idx, it), "image_choice": assets.override(step["id"], idx) or "",
+                          "can_image": it["t"] == "msg", "editable": "text" in it,
                           "options": [o["label"] for o in it.get("options", [])]})
         return {"id": step["id"], "title": step["title"], "when": step["when"], "survey": step["survey"],
                 "gate": step.get("gate"), "sites": step.get("sites"), "office": step.get("office"), "items": items}
@@ -603,6 +604,36 @@ async def scenario_text(body: TextIn):
         raise HTTPException(404, "item not found")
     db.set_setting(f"text:{body.step_id}:{body.idx}", body.text.strip())  # пусто → вернётся исходный текст
     return {"ok": True}
+
+
+class ImageIn(BaseModel):
+    step_id: str
+    idx: int
+    image: str  # имя файла из библиотеки, "none" — без картинки, "" — вернуть исходную из ТЗ
+
+
+@app.get("/api/scenario/images", dependencies=ADMIN)
+async def scenario_images():
+    return assets.library()
+
+
+@app.post("/api/scenario/images", dependencies=ADMIN)
+async def upload_scenario_image(request: Request):
+    try:
+        return {"file": assets.save_upload(await request.body())}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.put("/api/scenario/image", dependencies=ADMIN)
+async def scenario_image(body: ImageIn):
+    step = sc.STEP_BY_ID.get(body.step_id)
+    if not step or not 0 <= body.idx < len(step["items"]) or step["items"][body.idx]["t"] != "msg":
+        raise HTTPException(404, "message not found")
+    if body.image not in ("", assets.NONE) and not assets.path(body.image):
+        raise HTTPException(400, "unknown image")
+    db.set_setting(f"image:{body.step_id}:{body.idx}", body.image)
+    return {"ok": True, "image": assets.for_item(body.step_id, body.idx, step["items"][body.idx])}
 
 
 @app.get("/api/surveys", dependencies=ADMIN)

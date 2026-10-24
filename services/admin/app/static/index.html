@@ -102,7 +102,7 @@
 
   <section id="scn" class="hide">
     <div class="card"><h2>Сценарий онбординга</h2>
-      <p class="muted">Все сообщения Корсика по ТЗ. Тексты можно править — изменения применяются сразу (пустое поле возвращает исходный текст). <code>{name}</code> — имя сотрудника.</p>
+      <p class="muted">Все сообщения Корсика по ТЗ. Тексты и картинки можно изменять — изменения применяются сразу (пустой текст возвращает исходный; у картинки есть «Исходная из ТЗ» и «Без картинки», можно загрузить свою JPEG/PNG). <code>{name}</code> — имя сотрудника.</p>
       <div id="missing" class="muted"></div></div>
     <div id="steps"></div>
   </section>
@@ -279,12 +279,38 @@ setInterval(() => { if (tab === 'emp' && curEmp) openEmp(curEmp, true); }, 6000)
 
 // ---------- сценарий ----------
 async function loadScn() {
+  const opened = new Set([...document.querySelectorAll('#steps details[open]')].map(x => x.dataset.id));
   const d = await (await api('pipeline', 'api/scenario')).json();
-  $('#missing').innerHTML = '📎 Материалы из ТЗ, которых пока нет (картинки/PDF; сообщения без них отправляются без вложений): ' + d.missing_assets.map(esc).join(', ');
+  LIB = await (await api('pipeline', 'api/scenario/images')).json();
+  $('#missing').innerHTML = '📎 Материалы из ТЗ, которых пока нет (карты, открытки, PDF; без них сообщения идут без вложений — для любого сообщения можно выбрать или загрузить картинку): ' + d.missing_assets.map(esc).join(', ');
   const tags = i => [i.sites ? i.sites.map(x => SITES[x]).join('/') : null, i.office === true ? 'офис' : i.office === false ? 'не офис' : null].filter(Boolean).join(' · ');
-  $('#steps').innerHTML = d.steps.map(st => `<details><summary>${esc(st.title)} <span class="muted">· ${esc(st.when)}${st.gate ? ' · по отмашке рекрутера' : ''}${st.survey ? ' · опрос' : ''}${tags(st) ? ' · ' + tags(st) : ''}</span></summary>
+  $('#steps').innerHTML = d.steps.map(st => `<details data-id="${st.id}" ${opened.has(st.id) ? 'open' : ''}><summary>${esc(st.title)} <span class="muted">· ${esc(st.when)}${st.gate ? ' · по отмашке рекрутера' : ''}${st.survey ? ' · опрос' : ''}${tags(st) ? ' · ' + tags(st) : ''}</span></summary>
     ${st.items.map(i => `<div class="item"><small>${i.type}${tags(i) ? ' · ' + tags(i) : ''}${i.asset ? ' · 📎 ' + esc(i.asset) : ''}${i.options.length ? ' · варианты: ' + i.options.map(esc).join(' / ') : ''}${i.edited ? ' · ✏️ изменено' : ''}</small>
+      ${i.can_image ? imgBlock(st.id, i) : ''}
       ${i.editable ? `<textarea class="t" id="t_${st.id}_${i.idx}">${esc(i.text)}</textarea><button class="s" onclick="saveText('${st.id}',${i.idx})">Сохранить</button>` : `<div>${esc(i.text) || '<span class="muted">ответ из базы знаний</span>'}</div>`}</div>`).join('')}</details>`).join('');
+}
+let LIB = [];
+const imgUrl = f => `/api/pipeline/assets/${f}`;
+function imgBlock(sid, i) {
+  const k = `${sid}_${i.idx}`, ch = i.image_choice;
+  const opts = [['', 'Исходная из ТЗ' + (i.asset ? ` (${i.asset})` : ' (нет)')], ['none', 'Без картинки'], ...LIB.map(x => [x.file, x.label])]
+    .map(([v, l]) => `<option value="${esc(v)}" ${v === ch ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  return `<div class="imgrow" style="display:flex;gap:10px;align-items:center;margin:6px 0">
+    ${i.image ? `<img id="im_${k}" src="${imgUrl(i.image)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px">` : `<span id="im_${k}" class="muted">без картинки</span>`}
+    <select onchange="setImage('${sid}',${i.idx},this.value)">${opts}</select>
+    <label class="s" style="cursor:pointer;padding:6px 10px">Загрузить свою<input type="file" accept="image/jpeg,image/png" hidden onchange="uploadImage('${sid}',${i.idx},this)"></label>
+    ${i.image_choice ? '<span class="muted">🖼 изменено</span>' : ''}</div>`;
+}
+async function setImage(step, idx, image) {
+  const r = await api('pipeline', 'api/scenario/image', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ step_id: step, idx, image }) });
+  if (!r.ok) return alert('Ошибка: ' + (await r.text()));
+  loadScn();
+}
+async function uploadImage(step, idx, input) {
+  const f = input.files[0]; if (!f) return;
+  const r = await api('pipeline', 'api/scenario/images', { method: 'POST', headers: {'Content-Type': f.type}, body: f });
+  if (!r.ok) return alert('Не загрузилось: ' + (await r.json()).detail);
+  await setImage(step, idx, (await r.json()).file);
 }
 async function saveText(step, idx) { const r = await api('pipeline', 'api/scenario/text', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ step_id: step, idx, text: $(`#t_${step}_${idx}`).value }) }); alert(r.ok ? 'Сохранено' : 'Ошибка'); }
 
